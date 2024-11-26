@@ -2162,11 +2162,19 @@ void LocalDerivationGoal::runChild()
                         continue;
                     throw SysError("getting attributes of required path '%s", path);
                 }
-                if (S_ISDIR(optSt->st_mode))
-                    sandboxProfile += fmt("\t(subpath \"%s\")\n", path);
-                else
-                    sandboxProfile += fmt("\t(literal \"%s\")\n", path);
+                /* Allow paths which are not below the Nix store directory */
+                if (!path.starts_with(worker.store.storeDir)) {
+                    if (S_ISDIR(optSt->st_mode))
+                        sandboxProfile += fmt("\t(subpath \"%s\")\n", path);
+                    else
+                        sandboxProfile += fmt("\t(literal \"%s\")\n", path);
+                }
             }
+            sandboxProfile += ")\n";
+
+            /* Allow accessing any path below the Nix store directory */
+            sandboxProfile += "(allow file-read* file-write* process-exec\n";
+            sandboxProfile += fmt("\t(regex #\"^%s/.*\")\n", worker.store.storeDir);
             sandboxProfile += ")\n";
 
             /* Allow file-read* on full directory hierarchy to self. Allows realpath() */
